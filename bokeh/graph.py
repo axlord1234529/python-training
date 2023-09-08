@@ -1,8 +1,8 @@
 import pandas as pd
 import networkx as nx
-from bokeh.plotting import figure, from_networkx, show,curdoc
-from bokeh.models import (BoxSelectTool, Circle, EdgesAndLinkedNodes,NodesAndLinkedEdges,
-                          HoverTool, MultiLine, Plot, TapTool,CustomJS,Slider,Select)
+from bokeh.plotting import from_networkx, show
+from bokeh.models import (Circle, EdgesAndLinkedNodes,NodesAndLinkedEdges,
+                          HoverTool, MultiLine, Plot, TapTool,CustomJS,Slider)
 from bokeh.palettes import Spectral4
 from bokeh.layouts import column
 
