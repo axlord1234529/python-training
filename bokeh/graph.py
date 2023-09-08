@@ -18,8 +18,7 @@ for i in range(len(weights)):
 
 G = nx.from_pandas_edgelist(df=df,source='ID1', target='ID2', edge_attr=['weight'])
 
-
-p = Plot(width= 700, height = 700, title = 'Nodes are clickable and you can hover over edges and nodes')
+p = Plot(width= 700, height = 700, title = 'Nodes are clickable and you can hover over edges and nodes', margin= 40)
 p.grid.grid_line_color = None
 
 graph = from_networkx(G, nx.spring_layout,scale=1.8, center=(0,0))
@@ -46,7 +45,7 @@ graph.inspection_policy = EdgesAndLinkedNodes()
 
 og_edge_data = graph.edge_renderer.data_source.data
 
-slider = Slider(start=0, end=5, value=0, step=1, title="Threshold: ")
+slider = Slider(start=0, end=5, value=0, step=1, title="Threshold: ", margin= 40)
 
 callback = CustomJS(args=dict(source = graph.edge_renderer.data_source, slider = slider, original_data = og_edge_data), code= """  
     const data = source.data;
@@ -55,9 +54,9 @@ callback = CustomJS(args=dict(source = graph.edge_renderer.data_source, slider =
     const weight = original_data['weight'];
     const selected_value = slider.value;
     const ds = {};
-    var filteredStart = [];
-    var filteredEnd = [];
-    var filteredWeight = [];
+    let filteredStart = [];
+    let filteredEnd = [];
+    let filteredWeight = [];
     
     if(selected_value > 0){
         for (var i = 0; i < start.length; i++) {
@@ -86,10 +85,10 @@ callback = CustomJS(args=dict(source = graph.edge_renderer.data_source, slider =
 og_node_data = graph.node_renderer.data_source
 
 on_graph_tap_callback = CustomJS(args= dict(node_source = graph.node_renderer.data_source, edge_source = graph.edge_renderer.data_source, og_node_source = og_node_data), code = """
-    var selectedNodes = node_source.selected.indices;
-    var selectedEdges = edge_source.selected.indices;
+    let selectedNodes = node_source.selected.indices;
+    let selectedEdges = edge_source.selected.indices;
     const ORIGINAL_NODE_COLOR = '#2b83ba';
-    var alertMessage = "";
+    let alertMessage = "";
    
     node_source.data['fill_color'].fill(ORIGINAL_NODE_COLOR);
     node_source.change.emit();
@@ -101,9 +100,9 @@ on_graph_tap_callback = CustomJS(args= dict(node_source = graph.node_renderer.da
     }
                            
     if(selectedEdges.length > 0){
-        var startNodes = selectedEdges.map(edge => edge_source.data['start'][edge]);
-        var endNodes = selectedEdges.map(edge => edge_source.data['end'][edge]);
-        var weights = selectedEdges.map(edge => edge_source.data['weight'][edge]);
+        const startNodes = selectedEdges.map(edge => edge_source.data['start'][edge]);
+        const endNodes = selectedEdges.map(edge => edge_source.data['end'][edge]);
+        const weights = selectedEdges.map(edge => edge_source.data['weight'][edge]);
                            
         startNodes.forEach( node => {
             node_source.data['fill_color'][node-1] = 'red';
@@ -156,8 +155,8 @@ on_graph_tap_callback = CustomJS(args= dict(node_source = graph.node_renderer.da
 
 on_plot_tap_callback = CustomJS(args= dict(node_source = graph.node_renderer.data_source, edge_source = graph.edge_renderer.data_source ), code = """
     const ORIGINAL_NODE_COLOR = '#2b83ba';
-    var selectedNodes = node_source.selected.indices;
-    var selectedEdges = edge_source.selected.indices;
+    const selectedNodes = node_source.selected.indices;
+    const selectedEdges = edge_source.selected.indices;
                     
     if(selectedNodes.length == 0 && selectedEdges == 0){
         node_source.data['fill_color'].fill(ORIGINAL_NODE_COLOR);
