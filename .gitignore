@@ -1,3 +1,3 @@
 *.vscode
-mod*
+mod_*
 .ipynb_checkpoints
