@@ -6,6 +6,10 @@ name = "pypi"
 [packages]
 django = "*"
 mysqlclient = "*"
+bokeh-django = "*"
+channels = "*"
+networkx = "*"
+pandas = "*"
 
 [dev-packages]
 

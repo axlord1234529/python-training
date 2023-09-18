@@ -16,8 +16,17 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+from bokeh_django import autoload, static_extensions
+from display import views 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('display.urls'))
+    path('display/', include('display.urls')),
+    #*static_extensions(),
+    #*staticfiles_urlpatterns(),
+]
+
+bokeh_apps = [
+    autoload('display', views.bokeh_handler) 
 ]
