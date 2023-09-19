@@ -23,8 +23,6 @@ from display import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('display/', include('display.urls')),
-    #*static_extensions(),
-    #*staticfiles_urlpatterns(),
 ]
 
 bokeh_apps = [
