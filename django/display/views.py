@@ -1,13 +1,16 @@
 from django.shortcuts import render
 import pandas as pd
 import networkx as nx
-from display.models import Edge
+from display.models import Edge,User
+from datetime import date
+from random import randint
+from django.http import JsonResponse
 # bokeh imports
 from bokeh.plotting import from_networkx
 from bokeh.document import Document
-from bokeh.layouts import column
+from bokeh.layouts import column, row
 from bokeh.models import (Circle, EdgesAndLinkedNodes,
-                          HoverTool, MultiLine, Plot, TapTool,CustomJS,Slider)
+                          HoverTool, MultiLine, Plot, TapTool,CustomJS,Slider, ColumnDataSource, DataTable, TableColumn)
 from bokeh.embed import server_document
 from bokeh.palettes import Spectral4
 
@@ -19,11 +22,28 @@ def get_data_from_database() -> pd.DataFrame:
 
     return df
 
+def get_users_for_table(request) -> dict:
+    if request.method == 'GET':
+        user1_id_list = request.GET.getlist('id_list1[]')
+        user2_id_list = request.GET.getlist('id_list2[]')
+
+        users1 =  [User.objects.values_list('username', flat=True).get(id=user_id) for user_id in user1_id_list ]
+        users2 = [User.objects.values_list('username', flat=True).get(id=user_id) for user_id in user2_id_list ]
+
+        response_data = {
+            'users1': users1,
+            'users2': users2,
+        }
+        return JsonResponse(response_data)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
 def bokeh_handler(doc: Document) -> None:
+
     df = get_data_from_database()
 
     # Create networkx graph
-    G = nx.from_pandas_edgelist(df=df,source='id1', target='id2', edge_attr=['weight'])
+    G = nx.from_pandas_edgelist(df=df,source='user1_id', target='user2_id', edge_attr=['weight'])
 
     # Create graph
     graph = from_networkx(G, nx.spring_layout,scale=1.8, center=(0,0))
@@ -43,12 +63,30 @@ def bokeh_handler(doc: Document) -> None:
     graph.selection_policy = EdgesAndLinkedNodes()
     graph.inspection_policy = EdgesAndLinkedNodes()
 
-    # Set callback on graph. Callback fires when edge is selected.
-    def edge_selected_callback(attr, old_selected, new_selected):
-        print("Selected indices changed from", old_selected, "to", new_selected)
-    
-    graph.edge_renderer.data_source.selected.on_change('indices', edge_selected_callback)
+    # data table
+    table_data = dict(
+        dates=[date(2014, 3, i+1) for i in range(10)],
+        downloads=[randint(0, 100) for i in range(10)],
+    )
+    table_source = ColumnDataSource(table_data)
 
+    columns = [
+        TableColumn(field="users1", title="User 1"),
+        TableColumn(field="users2", title="User 2")
+    ]
+    data_table = DataTable(source=table_source, columns=columns, width=400, height=280)
+
+    edge_selected_callback = CustomJS(args=dict(node_source = graph.node_renderer.data_source, edge_source = graph.edge_renderer.data_source, data_table_source = data_table.source, cd = ColumnDataSource()), code = """
+        const dt = data_table_source
+        let selectedEdges = edge_source.selected.indices;                             
+        const startNodes = selectedEdges.map(edge => edge_source.data['start'][edge]);
+        const endNodes = selectedEdges.map(edge => edge_source.data['end'][edge]);
+                                      
+        getUserNameById(startNodes,endNodes,dt,cd);
+        dt.change.emit();
+
+                                      """)
+    graph.edge_renderer.data_source.selected.js_on_change('indices',edge_selected_callback)
     # plot callbacks
     og_edge_data = graph.edge_renderer.data_source.data
     og_node_data = graph.node_renderer.data_source
@@ -137,7 +175,7 @@ def bokeh_handler(doc: Document) -> None:
     """)
    
     # Plot
-    p = Plot(width= 700, height = 700, title = 'Nodes are clickable and you can hover over edges and nodes', margin= 40)
+    p = Plot(width= 700, height = 700, title = 'Nodes are clickable and you can hover over edges and nodes')
     p.add_tools(HoverTool(renderers=[graph.edge_renderer],tooltips=[('Node 1', '@start'), ('Node 2', '@end'), ('Weight', '@weight')]))
     p.add_tools(HoverTool(renderers=[graph.node_renderer], tooltips=[('Node', '@index')]))
 
@@ -146,7 +184,7 @@ def bokeh_handler(doc: Document) -> None:
     p.renderers.append(graph)
     
     # Slider
-    slider = Slider(start=0, end=5, value=0, step=1, title="Threshold: ", margin= 40)
+    slider = Slider(start=0, end=5, value=0, step=1, title="Threshold: ")
 
     slider_callback = CustomJS(args=dict(source = graph.edge_renderer.data_source, slider = slider, original_data = og_edge_data), code= """  
         const data = source.data;
@@ -185,7 +223,7 @@ def bokeh_handler(doc: Document) -> None:
     slider.js_on_change('value', slider_callback)
 
 
-    layout = column(p, slider)
+    layout = column(row(p, data_table),slider)
     
     doc.add_root(layout)
 
