@@ -63,6 +63,47 @@ def bokeh_handler(doc: Document) -> None:
     graph.selection_policy = EdgesAndLinkedNodes()
     graph.inspection_policy = EdgesAndLinkedNodes()
 
+
+    def edge_selected_callback_2(attr,old,new):
+        node_source =  graph.node_renderer.data_source
+        index = node_source.data['index']
+        start_nodes = [graph.edge_renderer.data_source.data['start'][edge] for edge in new]
+        end_nodes = [graph.edge_renderer.data_source.data['end'][edge] for edge in new]
+        
+        # reset color
+        graph.node_renderer.data_source.data = dict(
+            index = index ,
+            fill_color =  [Spectral4[0] for i in  range(len(index))]
+        )
+        
+        # color red
+        for node in start_nodes:
+            for i in range(len(node_source.data['index'])):
+                if node_source.data['index'][i] == node:
+                    node_source.data['fill_color'][i] = 'red'
+
+        for node in end_nodes:
+            for i in range(len(node_source.data['index'])):
+                if node_source.data['index'][i] == node:
+                    node_source.data['fill_color'][i] = 'red'
+
+        new_node_data = {
+            'index' : node_source.data['index'],
+            'fill_color': node_source.data['fill_color']
+        }
+        
+        graph.node_renderer.data_source.data = new_node_data
+        
+
+        
+
+        
+
+    def node_selected_callback_2(attr,old,new):
+        print(attr)
+        print('from node')
+    graph.edge_renderer.data_source.selected.on_change('indices', edge_selected_callback_2)
+    graph.node_renderer.data_source.selected.on_change('indices', node_selected_callback_2)
     # data table
     table_data = dict(
         dates=[date(2014, 3, i+1) for i in range(10)],
@@ -89,9 +130,10 @@ def bokeh_handler(doc: Document) -> None:
     graph.edge_renderer.data_source.selected.js_on_change('indices',edge_selected_callback)
     # plot callbacks
     og_edge_data = graph.edge_renderer.data_source.data
-    og_node_data = graph.node_renderer.data_source
+    og_node_data = graph.node_renderer.data_source.data
 
     on_graph_tap_callback = CustomJS(args= dict(node_source = graph.node_renderer.data_source, edge_source = graph.edge_renderer.data_source, og_node_source = og_node_data), code = """
+        console.log('Im still alive');
         let selectedNodes = node_source.selected.indices;
         let selectedEdges = edge_source.selected.indices;
         const ORIGINAL_NODE_COLOR = '#2b83ba';
@@ -179,7 +221,8 @@ def bokeh_handler(doc: Document) -> None:
     p.add_tools(HoverTool(renderers=[graph.edge_renderer],tooltips=[('Node 1', '@start'), ('Node 2', '@end'), ('Weight', '@weight')]))
     p.add_tools(HoverTool(renderers=[graph.node_renderer], tooltips=[('Node', '@index')]))
 
-    p.add_tools(TapTool(renderers = [graph.edge_renderer, graph.node_renderer], callback = on_graph_tap_callback))
+    #p.add_tools(TapTool(renderers = [graph.edge_renderer, graph.node_renderer], callback = on_graph_tap_callback))
+    p.add_tools(TapTool(renderers = [graph.edge_renderer, graph.node_renderer]))
     p.js_on_event('tap', on_plot_tap_callback)
     p.renderers.append(graph)
     
@@ -219,9 +262,29 @@ def bokeh_handler(doc: Document) -> None:
 
         source.change.emit();            
     """)
+    def slider_callback_2(attr,old,new):
+        # filter edges
+        start_nodes =  og_edge_data['start']
+        end_nodes = og_edge_data['end']
+        weights = og_edge_data['weight']
+        
+        new_edge_data = {'start' : [ start_nodes[i] for i in range(len(start_nodes)) if weights[i] > new ],
+              'end': [ end_nodes[i] for i in range(len(end_nodes)) if weights[i] > new],
+              'weight': [weight for weight in weights if weight > new]}
+        
+        graph.edge_renderer.data_source.data = new_edge_data
+        # filter nodes
+        indices = og_node_data['index']
+        new_index = [index for index in indices if index in new_edge_data['start'] or index in new_edge_data['end']]
 
-    slider.js_on_change('value', slider_callback)
+        new_node_data = {'index' : new_index,
+                        'fill_color' : [Spectral4[0] for i in range(len(new_index))]}
+        
+        graph.node_renderer.data_source.data = new_node_data
 
+        
+    # slider.js_on_change('value', slider_callback)
+    slider.on_change('value',slider_callback_2)
 
     layout = column(row(p, data_table),slider)
     
