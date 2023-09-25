@@ -2,15 +2,13 @@ from django.shortcuts import render
 import pandas as pd
 import networkx as nx
 from display.models import Edge,User
-from datetime import date
-from random import randint
 from django.http import JsonResponse
 # bokeh imports
 from bokeh.plotting import from_networkx
 from bokeh.document import Document
 from bokeh.layouts import column, row
-from bokeh.models import (Circle, EdgesAndLinkedNodes,
-                          HoverTool, MultiLine, Plot, TapTool,CustomJS,Slider, ColumnDataSource, DataTable, TableColumn)
+from bokeh.models import (Circle,
+                          HoverTool, MultiLine, Plot, TapTool,CustomJS,Slider, DataTable, TableColumn)
 from bokeh.embed import server_document
 from bokeh.palettes import Spectral4
 
@@ -22,7 +20,7 @@ def get_data_from_database() -> pd.DataFrame:
 
     return df
 
-def get_users_for_table(request) -> dict:
+def get_edge_info_for_table(request) -> JsonResponse:
     if request.method == 'GET':
         user1_id_list = request.GET.getlist('id_list1[]')
         user2_id_list = request.GET.getlist('id_list2[]')
@@ -37,9 +35,43 @@ def get_users_for_table(request) -> dict:
         return JsonResponse(response_data)
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=405)
+    
+def get_user_info_for_table(request) -> JsonResponse:
+    if request.method == 'GET':
+        user_id_list = request.GET.getlist('id_list[]')
+        
+
+        users =  [User.objects.values_list('username', flat=True).get(id=user_id) for user_id in user_id_list ]
+        email = [User.objects.values_list('email', flat=True).get(id=user_id) for user_id in user_id_list ]
+
+        response_data = {
+            'users': users,
+            'email': email,
+        }
+        return JsonResponse(response_data)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
 
 def bokeh_handler(doc: Document) -> None:
+    # Create tables
+    columns = [
+        TableColumn(field="users1", title="User 1"),
+        TableColumn(field="users2", title="User 2")
+    ]
+    edge_data_table = DataTable( columns=columns, width=400, height=280)
 
+    columns = [
+        TableColumn(field="users1", title="User 1"),
+        TableColumn(field="users2", title="User 2")
+    ]
+
+    node_columns = [
+        TableColumn(field="users", title="User"),
+        TableColumn(field="email", title="E-mail")
+    ]
+    node_data_table = DataTable( columns=node_columns, width=400, height=280)
+
+    # get data for graph from db
     df = get_data_from_database()
 
     # Create networkx graph
@@ -60,11 +92,8 @@ def bokeh_handler(doc: Document) -> None:
     graph.edge_renderer.selection_glyph = MultiLine(line_color=Spectral4[2], line_width=2)
     graph.edge_renderer.hover_glyph = MultiLine(line_color=Spectral4[1], line_width=2)
 
-    graph.selection_policy = EdgesAndLinkedNodes()
-    graph.inspection_policy = EdgesAndLinkedNodes()
-
-
-    def edge_selected_callback_2(attr,old,new):
+    # graph callbacks
+    def edge_selected_callback(attr,old,new):
         node_source =  graph.node_renderer.data_source
         index = node_source.data['index']
         start_nodes = [graph.edge_renderer.data_source.data['start'][edge] for edge in new]
@@ -94,176 +123,53 @@ def bokeh_handler(doc: Document) -> None:
         
         graph.node_renderer.data_source.data = new_node_data
         
-
-        
-
-        
-
-    def node_selected_callback_2(attr,old,new):
-        print(attr)
-        print('from node')
-    graph.edge_renderer.data_source.selected.on_change('indices', edge_selected_callback_2)
-    graph.node_renderer.data_source.selected.on_change('indices', node_selected_callback_2)
-    # data table
-    table_data = dict(
-        dates=[date(2014, 3, i+1) for i in range(10)],
-        downloads=[randint(0, 100) for i in range(10)],
-    )
-    table_source = ColumnDataSource(table_data)
-
-    columns = [
-        TableColumn(field="users1", title="User 1"),
-        TableColumn(field="users2", title="User 2")
-    ]
-    data_table = DataTable(source=table_source, columns=columns, width=400, height=280)
-
-    edge_selected_callback = CustomJS(args=dict(node_source = graph.node_renderer.data_source, edge_source = graph.edge_renderer.data_source, data_table_source = data_table.source, cd = ColumnDataSource()), code = """
+    js_node_selected_callback = CustomJS(args=dict(node_source = graph.node_renderer.data_source,data_table_source = node_data_table.source), code = """ 
+        const selectedNodes = node_source.selected.indices;
+        const userIdList = selectedNodes.map(node => node_source.data['index'][node]);
+        getUserInfoById(userIdList,data_table_source);
+                                        """)
+    
+    js_edge_selected_callback = CustomJS(args=dict(node_source = graph.node_renderer.data_source, edge_source = graph.edge_renderer.data_source, data_table_source = edge_data_table.source), code = """
         const dt = data_table_source
         let selectedEdges = edge_source.selected.indices;                             
         const startNodes = selectedEdges.map(edge => edge_source.data['start'][edge]);
         const endNodes = selectedEdges.map(edge => edge_source.data['end'][edge]);
                                       
-        getUserNameById(startNodes,endNodes,dt,cd);
+        getEdgeInfoById(startNodes,endNodes,dt);
         dt.change.emit();
-
                                       """)
-    graph.edge_renderer.data_source.selected.js_on_change('indices',edge_selected_callback)
-    # plot callbacks
+
+    graph.edge_renderer.data_source.selected.on_change('indices', edge_selected_callback)
+    graph.edge_renderer.data_source.selected.js_on_change('indices',js_edge_selected_callback)
+    graph.node_renderer.data_source.selected.js_on_change('indices',js_node_selected_callback)
+
     og_edge_data = graph.edge_renderer.data_source.data
     og_node_data = graph.node_renderer.data_source.data
-
-    on_graph_tap_callback = CustomJS(args= dict(node_source = graph.node_renderer.data_source, edge_source = graph.edge_renderer.data_source, og_node_source = og_node_data), code = """
-        console.log('Im still alive');
-        let selectedNodes = node_source.selected.indices;
-        let selectedEdges = edge_source.selected.indices;
-        const ORIGINAL_NODE_COLOR = '#2b83ba';
-        let alertMessage = "";
-    
-        node_source.data['fill_color'].fill(ORIGINAL_NODE_COLOR);
-        node_source.change.emit();
-
-        if(selectedNodes.length > 0 && selectedEdges.length > 0){
-            selectedEdges = [];
-            edge_source.selected.indices = selectedEdges; 
-            edge_source.change.emit();
-        }
-                            
-        if(selectedEdges.length > 0){
-            const startNodes = selectedEdges.map(edge => edge_source.data['start'][edge]);
-            const endNodes = selectedEdges.map(edge => edge_source.data['end'][edge]);
-            const weights = selectedEdges.map(edge => edge_source.data['weight'][edge]);
-                            
-            startNodes.forEach( node => {
-                node_source.data['fill_color'][node-1] = 'red';
-            })
-            
-            endNodes.forEach( node => {
-                node_source.data['fill_color'][node-1] = 'red';
-            })
-            node_source.change.emit();
-            
-            const edges = [];
-            for(var i = 0; i < selectedEdges.length; i++) {
-                edges[i] = "(" + startNodes[i] + ";" + endNodes[i] + ";" + weights[i] + ")";
-            }
-            alertMessage = "Selected edges (start;end;weight): " + edges.join(", ");           
-            
-            var h1Element = document.getElementById('myHeading');
-
-            
-            if (h1Element) {
-                
-                h1Element.textContent = alertMessage;
-            }
-            
-        }
-        
-        if (selectedNodes.length > 0 && selectedEdges.length == 0) { 
-            const indexes = [];
-            const startNodes = edge_source.data['start'];
-            const endNodes = edge_source.data['end'];
-                    
-            selectedNodes.forEach( node => {
-                startNodes.forEach((startNode, index) => {
-                    if(startNode === node+1){
-                        indexes.push(index);
-                    }
-                });
-                
-                endNodes.forEach((endNode, index) => {
-                    if(endNode === node+1){
-                        indexes.push(index);
-                    }
-                }); 
-            });
-
-            edge_source.selected.indices = indexes;
-                            
-            edge_source.change.emit();
-        }                  
-        
-    """)
-
-    on_plot_tap_callback = CustomJS(args= dict(node_source = graph.node_renderer.data_source, edge_source = graph.edge_renderer.data_source ), code = """
-        const ORIGINAL_NODE_COLOR = '#2b83ba';
-        const selectedNodes = node_source.selected.indices;
-        const selectedEdges = edge_source.selected.indices;
-                        
-        if(selectedNodes.length == 0 && selectedEdges == 0){
-            node_source.data['fill_color'].fill(ORIGINAL_NODE_COLOR);
-            node_source.change.emit();
-        }
-
-    """)
    
     # Plot
     p = Plot(width= 700, height = 700, title = 'Nodes are clickable and you can hover over edges and nodes')
     p.add_tools(HoverTool(renderers=[graph.edge_renderer],tooltips=[('Node 1', '@start'), ('Node 2', '@end'), ('Weight', '@weight')]))
     p.add_tools(HoverTool(renderers=[graph.node_renderer], tooltips=[('Node', '@index')]))
 
-    #p.add_tools(TapTool(renderers = [graph.edge_renderer, graph.node_renderer], callback = on_graph_tap_callback))
     p.add_tools(TapTool(renderers = [graph.edge_renderer, graph.node_renderer]))
-    p.js_on_event('tap', on_plot_tap_callback)
+
+    def on_plot_tap_callback_2():
+        # Reset node's colors when clicking on plot
+        ORIGINAL_NODE_COLOR = '#2b83ba'
+        selected_nodes =  graph.node_renderer.data_source.selected.indices
+        selected_edges =  graph.edge_renderer.data_source.selected.indices
+        if len(selected_nodes) == 0 and len(selected_edges) == 0:
+            graph.node_renderer.data_source.data['fill_color']  = [ORIGINAL_NODE_COLOR for i in range(len(graph.node_renderer.data_source.data['fill_color']))]
+
+    p.on_event('tap', on_plot_tap_callback_2)
     p.renderers.append(graph)
-    
+
     # Slider
     slider = Slider(start=0, end=5, value=0, step=1, title="Threshold: ")
 
-    slider_callback = CustomJS(args=dict(source = graph.edge_renderer.data_source, slider = slider, original_data = og_edge_data), code= """  
-        const data = source.data;
-        const start = original_data['start'];  
-        const end = original_data['end'];      
-        const weight = original_data['weight'];
-        const selected_value = slider.value;
-        const ds = {};
-        let filteredStart = [];
-        let filteredEnd = [];
-        let filteredWeight = [];
-        
-        if(selected_value > 0){
-            for (var i = 0; i < start.length; i++) {
-                if (weight[i] > selected_value) {
-                    filteredStart.push(start[i]);
-                    filteredEnd.push(end[i]);
-                    filteredWeight.push(weight[i]);
-                }
-            }                
-        }else {
-            filteredStart = start;
-            filteredEnd = end;
-            filteredWeight = weight;
-        }
-
-        ds['start'] = filteredStart;
-        ds['end'] = filteredEnd;
-        ds['weight'] = filteredWeight;
-        
-        source.data = ds;
-
-        source.change.emit();            
-    """)
-    def slider_callback_2(attr,old,new):
+    def slider_callback(attr,old,new):
         # filter edges
+        graph.edge_renderer.data_source.selected.indices = []
         start_nodes =  og_edge_data['start']
         end_nodes = og_edge_data['end']
         weights = og_edge_data['weight']
@@ -282,11 +188,9 @@ def bokeh_handler(doc: Document) -> None:
         
         graph.node_renderer.data_source.data = new_node_data
 
-        
-    # slider.js_on_change('value', slider_callback)
-    slider.on_change('value',slider_callback_2)
+    slider.on_change('value',slider_callback)
 
-    layout = column(row(p, data_table),slider)
+    layout = column(row(p, column(edge_data_table, node_data_table)),slider)
     
     doc.add_root(layout)
 
