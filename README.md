@@ -1,4 +1,4 @@
-## Getting Started
+## Instructions for running the django project
 
 ### Clone the Repository
 
@@ -7,11 +7,7 @@ URL : `https://github.com/axlord1234529/python-training.git`
 ```bash
 git clone https://github.com/axlord1234529/python-training.git
 ```
-### Switch to bokeh-django branch.
 
-```bash
-git checkout bokeh-django
-```
 ### Move to projects directory
 
 ```bash
@@ -29,7 +25,7 @@ pipenv shell
 pipenv install
 ```
 ### Create database
-
+Import the sql dump form django/display/data into your mysql client.
 ### Connect to database
 In the <strong>settings.py</strong> edit the database dictionary.
 ```python
@@ -43,14 +39,6 @@ DATABASES = {
         'PORT': '3306'
     }
 }
-```
-Run migrations:
-```bash
-python manage.py migrate
-```
-### Import display_edge data.
- In django/display/data, you can find the SQL dump or the CSV. Use either to import.
-
 ### Start server
 ```bash
 python manage.py runserver
