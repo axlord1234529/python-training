@@ -1,6 +1,6 @@
-## Instructions for running the django project
+## Instructions for running the django project.
 
-### Clone the Repository
+### Clone the Repository.
 
 URL : `https://github.com/axlord1234529/python-training.git` 
 
@@ -8,12 +8,12 @@ URL : `https://github.com/axlord1234529/python-training.git`
 git clone https://github.com/axlord1234529/python-training.git
 ```
 
-### Move to projects directory
+### Move to projects directory.
 
 ```bash
 cd django
 ```
-### Activate the Virtual Environment
+### Activate the Virtual Environment.
 If you don't have it already install pipenv
 ```bash
 pip install pipenv
@@ -24,9 +24,9 @@ pipenv shell
 
 pipenv install
 ```
-### Create database
+### Create database.
 Import the sql dump form django/display/data into your mysql client.
-### Connect to database
+### Connect to database.
 In the <strong>settings.py</strong> edit the database dictionary.
 ```python
 DATABASES = {
@@ -39,7 +39,8 @@ DATABASES = {
         'PORT': '3306'
     }
 }
-### Start server
+```
+### Start the server.
 ```bash
 python manage.py runserver
 ```
