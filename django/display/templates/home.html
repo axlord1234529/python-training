@@ -1,0 +1,10 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block content%}
+
+<h1 id="myHeading"> Graph </h1>
+
+{{ script|safe }}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="{% static 'display/graph.js' %}"></script>
+{% endblock %}
